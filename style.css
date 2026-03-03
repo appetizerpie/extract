@@ -398,3 +398,43 @@
     pointer-events: none !important;
     opacity: 0.6 !important;
 }
+
+/* ★ 추가: 드래그 중 폴더 가리기 및 가짜 폴더 표시 ★ */
+.pf-is-dragging .pf-folder-header,
+.pf-is-dragging .pf-uncat-header {
+    display: none !important;
+}
+
+/* 첫 프롬프트 위에 공간 확보 */
+.pf-is-dragging .pf-folder-item.pf-first-in-folder {
+    margin-top: 32px !important;
+    position: relative;
+    /* Before 요소를 위한 기준점 */
+}
+
+/* 가짜 폴더 헤더 렌더링 */
+.pf-is-dragging .pf-folder-item.pf-first-in-folder::before {
+    content: "📁 " attr(data-pf-folder-name);
+    position: absolute;
+    top: -28px;
+    left: -11px;
+    /* 외부 좌측 테두리 등 상쇄 */
+    width: calc(100% + 11px);
+
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    box-sizing: border-box;
+
+    background: var(--SmartThemeBlurTintColor, rgba(60, 60, 80, 0.5));
+    border-left: 3px solid var(--SmartThemeQuoteColor, #7b8dff);
+    border-radius: 4px;
+    color: var(--SmartThemeBodyColor, #ccc);
+
+    pointer-events: none;
+    /* 클릭 안 됨 */
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    z-index: 10;
+}

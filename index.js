@@ -532,9 +532,21 @@
         for (const folder of [...d.folders].sort((a, b) => a.order - b.order)) {
             fragment.appendChild(createFolderHeader(folder));
             const isHidden = (folder.collapsed && !searchQuery);
-            for (const row of (assignedRows[folder.id] || [])) {
+            const folderRows = assignedRows[folder.id] || [];
+
+            for (let i = 0; i < folderRows.length; i++) {
+                const row = folderRows[i];
                 row.classList.add('pf-folder-item');
                 row.setAttribute('data-pf-folder', folder.id);
+                // ★ [드래그 렉 해결] 가짜 폴더 헤더 생성을 위해 첫 번째 요소에 태그
+                if (i === 0) {
+                    row.classList.add('pf-first-in-folder');
+                    row.setAttribute('data-pf-folder-name', folder.name);
+                } else {
+                    row.classList.remove('pf-first-in-folder');
+                    row.removeAttribute('data-pf-folder-name');
+                }
+
                 // 이동하기 전에 디스플레이 속성을 먼저 적용하여 계산 최소화
                 row.style.display = isHidden ? 'none' : '';
                 fragment.appendChild(row);
@@ -1427,7 +1439,10 @@
             // ST의 SortableJS가 드래그 중(고스트 엘리먼트 존재)이라면 즉시 종료!
             if (list.querySelector('.sortable-chosen, .sortable-ghost, .sortable-drag')) {
                 wasDragging = true;
+                list.classList.add('pf-is-dragging'); // ★ [드래그 렉 해결] 폴더 헤더 숨기기용 클래스 추가
                 return;
+            } else {
+                list.classList.remove('pf-is-dragging'); // 드래그 끝나면 제거
             }
 
             // [Mousedown Freeze 핵심 원인 해결]: 
