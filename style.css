@@ -429,3 +429,10 @@
     transition: none !important;
     animation: none !important;
 }
+
+/* 드래그 딜레이(Mousedown Freeze) 원인 제거: SortableJS의 다중 중첩 요소 Hit-Test를 
+   건너뛰기 위해 드래그 중에 폴더 헤더와 하위 요소들의 이벤트를 강제 무시 */
+body:has(.sortable-drag) .pf-folder-header,
+body:has(.sortable-ghost) .pf-folder-header {
+    pointer-events: none !important;
+}
