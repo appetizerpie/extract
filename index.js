@@ -16,6 +16,7 @@
     let searchHasFocus = false;
     let dirty = false;
     let isImporting = false;
+    let isDragging = false; // 프롬프트 드래그 중인지 추적
     let needsSTSync = false; // 유저가 폴더를 직접 다시 정렬할 때만 참(true)이 됩니다.
 
     /* ─── 설정 도우미 (Settings helpers) ─── */
@@ -414,10 +415,13 @@
         const assignedRows = {};
         const unassignedRows = [];
 
+        // 검색용 Set (빠른 조회)
+        const validFolderIds = new Set(d.folders.map(f => f.id));
+
         for (const row of rows) {
             const id = row.getAttribute('data-pm-identifier');
             const fId = d.assignments[id];
-            if (fId && d.folders.some(f => f.id === fId)) {
+            if (fId && validFolderIds.has(fId)) {
                 if (!assignedRows[fId]) assignedRows[fId] = [];
                 assignedRows[fId].push(row);
             } else {
@@ -426,25 +430,33 @@
             addFolderButton(row, id);
         }
 
+        // DOM 조작 성능 최적화를 위해 DocumentFragment 사용 (수십 개의 폴더로 인한 렉 방지)
+        const fragment = document.createDocumentFragment();
+
         for (const folder of [...d.folders].sort((a, b) => a.order - b.order)) {
-            parent.appendChild(createFolderHeader(folder));
+            fragment.appendChild(createFolderHeader(folder));
+            const isHidden = (folder.collapsed && !searchQuery);
             for (const row of (assignedRows[folder.id] || [])) {
                 row.classList.add('pf-folder-item');
                 row.setAttribute('data-pf-folder', folder.id);
-                parent.appendChild(row);
-                row.style.display = (folder.collapsed && !searchQuery) ? 'none' : '';
+                // 이동하기 전에 디스플레이 속성을 먼저 적용하여 계산 최소화
+                row.style.display = isHidden ? 'none' : '';
+                fragment.appendChild(row);
             }
         }
 
         if (unassignedRows.length > 0) {
-            parent.appendChild(createUncategorizedHeader());
+            fragment.appendChild(createUncategorizedHeader());
             for (const row of unassignedRows) {
                 row.classList.remove('pf-folder-item');
                 row.removeAttribute('data-pf-folder');
                 row.style.display = '';
-                parent.appendChild(row);
+                fragment.appendChild(row);
             }
         }
+
+        // 메모리에서 완성된 구조를 실제 DOM에 한 번에 적용
+        parent.appendChild(fragment);
 
         if (searchQuery) applySearchFilter(rows);
     }
@@ -1165,11 +1177,47 @@
         if (!target) return;
         if (observer) observer.disconnect();
         observer = new MutationObserver(() => {
-            if (searchHasFocus) return;
+            if (searchHasFocus || isDragging) return;
             const list = getListContainer();
             if (list && !list.querySelector('.pf-injected') && !isRebuilding) rebuildFolderUI();
         });
         observer.observe(target, { childList: true, subtree: true });
+
+        // 네이티브 드래그 중 MutationObserver 무한 루프(프리징) 방지
+        const list = getListContainer();
+        if (list && !list._pfDnD) {
+            list._pfDnD = true;
+            list.addEventListener('pointerdown', (e) => {
+                // 핸들을 잡았을 때만 드래그 시작으로 간주 (SillyTavern 기본 핸들 클래스)
+                if (e.target.closest('.drag-handle') || e.target.closest('.prompt_manager_drag')) {
+                    isDragging = true;
+                }
+            });
+            // 드래그가 끝났을 때 다시 UI 재구성 및 ST 원래 구조 보호(동기화)
+            const handleDragEnd = () => {
+                if (isDragging) {
+                    isDragging = false;
+                    setTimeout(() => {
+                        if (!isRebuilding) {
+                            // 네이티브 프롬프트 드래그 앤 드롭으로 인한 ST 내부 배열 순서 동기화
+                            const rows = getPromptRows(list);
+                            const ids = rows.map(r => r.getAttribute('data-pm-identifier')).filter(Boolean);
+                            const d = getPresetData();
+                            if (d.promptOrder && d.promptOrder.length > 0 && d.promptOrder.join(',') !== ids.join(',')) {
+                                console.log('[PF] 네이티브 프롬프트 드래그 완료. 내부 배열 수정 중...');
+                                needsSTSync = true;
+                                syncPromptOrder(list);
+                            }
+                            rebuildFolderUI();
+                        }
+                    }, 50);
+                }
+            };
+
+            list.addEventListener('pointerup', handleDragEnd);
+            // 드래그가 화면 밖에서 끝났을 때를 대비
+            document.addEventListener('pointerup', handleDragEnd);
+        }
     }
 
     /* ─── 슬래시 명령어 (Slash Commands) ─── */
