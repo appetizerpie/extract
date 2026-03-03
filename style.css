@@ -139,7 +139,6 @@
     margin-left: 8px !important;
     width: calc(100% - 8px) !important;
     box-sizing: border-box !important;
-    grid-template-columns: 5fr 80px 55px !important;
 }
 
 /* ─── 폴더 할당 버튼 (Folder assign button) ─── */
