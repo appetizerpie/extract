@@ -12,6 +12,7 @@
     let observer = null;
     let pollTimer = null;
     let isRebuilding = false;
+    let rebuildTimeout = null; // 디바운스를 위한 타이머
     let searchQuery = '';
     let searchHasFocus = false;
     let dirty = false;
@@ -208,22 +209,27 @@
     /* ─── UI 생성 (Build UI) ─── */
     function rebuildFolderUI() {
         if (isRebuilding) return;
-        isRebuilding = true;
-        const list = getListContainer();
-        if (!list) { isRebuilding = false; return; }
 
-        const si = list.querySelector('.pf-search-input');
-        searchHasFocus = si && (document.activeElement === si);
-        const cursorPos = searchHasFocus ? si.selectionStart : -1;
+        // 중복 호출 방지를 위한 디바운스 (여러 번의 Mutation이 발생해도 1번만 실행)
+        clearTimeout(rebuildTimeout);
+        rebuildTimeout = setTimeout(() => {
+            isRebuilding = true;
+            const list = getListContainer();
+            if (!list) { isRebuilding = false; return; }
 
-        _doRebuild(list);
-        syncPromptOrder(list);
-        isRebuilding = false;
+            const si = list.querySelector('.pf-search-input');
+            searchHasFocus = si && (document.activeElement === si);
+            const cursorPos = searchHasFocus ? si.selectionStart : -1;
 
-        if (searchHasFocus) {
-            const ns = list.querySelector('.pf-search-input');
-            if (ns) { ns.focus(); if (cursorPos >= 0) ns.setSelectionRange(cursorPos, cursorPos); }
-        }
+            _doRebuild(list);
+            syncPromptOrder(list);
+            isRebuilding = false;
+
+            if (searchHasFocus) {
+                const ns = list.querySelector('.pf-search-input');
+                if (ns) { ns.focus(); if (cursorPos >= 0) ns.setSelectionRange(cursorPos, cursorPos); }
+            }
+        }, 30); // 30ms 디바운스
     }
 
     /* ─── DOM 재정렬 후 ST 내부 데이터에 프롬프트 순서 동기화 ─── */
@@ -457,6 +463,11 @@
 
         // 메모리에서 완성된 구조를 실제 DOM에 한 번에 적용
         parent.appendChild(fragment);
+
+        // 무한 루프 방지: 현재 DOM에 존재하는 프롬프트 ID 목록을 해시 형태로 저장
+        list._pfHash = Array.from(list.querySelectorAll('[data-pm-identifier]'))
+            .map(r => r.getAttribute('data-pm-identifier'))
+            .filter(Boolean).join('|');
 
         if (searchQuery) applySearchFilter(rows);
     }
@@ -1168,7 +1179,14 @@
             list.querySelectorAll('.pf-toolbar').forEach(el => el.remove());
             rebuildFolderUI(); return;
         }
-        if (!list.querySelector('.pf-injected')) rebuildFolderUI();
+
+        const currentHash = Array.from(list.querySelectorAll('[data-pm-identifier]'))
+            .map(r => r.getAttribute('data-pm-identifier'))
+            .filter(Boolean).join('|');
+
+        if (!list.querySelector('.pf-injected') || (list._pfHash && list._pfHash !== currentHash)) {
+            rebuildFolderUI();
+        }
     }
 
     /* ─── MutationObserver 관찰자 ─── */
@@ -1179,7 +1197,17 @@
         observer = new MutationObserver(() => {
             if (searchHasFocus || isDragging) return;
             const list = getListContainer();
-            if (list && !list.querySelector('.pf-injected') && !isRebuilding) rebuildFolderUI();
+            if (list && !isRebuilding) {
+                // ST가 새로운 프롬프트를 추가/삭제하여 실제 구조가 변경되었는지 확인
+                const currentHash = Array.from(list.querySelectorAll('[data-pm-identifier]'))
+                    .map(r => r.getAttribute('data-pm-identifier'))
+                    .filter(Boolean).join('|');
+
+                // 해시가 같으면 (우리가 DOM을 조작해서 발생한 이벤트면) 무시
+                if (list._pfHash === currentHash) return;
+
+                rebuildFolderUI();
+            }
         });
         observer.observe(target, { childList: true, subtree: true });
 
