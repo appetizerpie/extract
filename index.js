@@ -1220,7 +1220,7 @@
                 if (e.target.closest('.drag-handle') || e.target.closest('.prompt_manager_drag')) {
                     isDragging = true;
                 }
-            });
+            }, { passive: true });
             // 드래그가 끝났을 때 다시 UI 재구성 및 ST 원래 구조 보호(동기화)
             const handleDragEnd = () => {
                 if (isDragging) {

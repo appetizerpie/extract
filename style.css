@@ -139,6 +139,8 @@
     margin-left: 8px !important;
     width: calc(100% - 8px) !important;
     box-sizing: border-box !important;
+    touch-action: none !important;
+    /* 드래그 잡기 딜레이 (꾹 누르기) 방지 */
 }
 
 /* ─── 폴더 할당 버튼 (Folder assign button) ─── */
@@ -408,4 +410,12 @@
 
 [data-pf-folder] {
     transition: none;
+}
+
+/* ─── ST 기본 프롬프트 드래그 (SortableJS) 최적화 ─── */
+.sortable-ghost,
+.sortable-drag {
+    pointer-events: none !important;
+    /* 드래그 중인 고스트 엘리먼트가 마우스 이벤트를 막아 생기는 렉 방지 */
+    opacity: 0.6 !important;
 }
