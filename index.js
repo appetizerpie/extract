@@ -1194,8 +1194,16 @@
         const target = document.getElementById('completion_prompt_manager') || document.querySelector('.completion_prompt_manager');
         if (!target) return;
         if (observer) observer.disconnect();
-        observer = new MutationObserver(() => {
+        observer = new MutationObserver((mutations) => {
             if (searchHasFocus || isDragging) return;
+
+            // 드래그 고스트 엘리먼트 등의 위치 변경만 있는 쓰레기 이벤트 무시 (100+개 이상 프롬프트에서 렉 방지)
+            const isOnlyGhostMove = mutations.every(m =>
+                m.target && m.target.classList &&
+                (m.target.classList.contains('sortable-ghost') || m.target.classList.contains('sortable-drag'))
+            );
+            if (isOnlyGhostMove) return;
+
             const list = getListContainer();
             if (list && !isRebuilding) {
                 // ST가 새로운 프롬프트를 추가/삭제하여 실제 구조가 변경되었는지 확인
