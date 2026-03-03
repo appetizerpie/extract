@@ -10,7 +10,6 @@
     /* ─── 상태 (State) ─── */
     let lastPreset = '';
     let observer = null;
-    let pollTimer = null;
     let isRebuilding = false;
     let rebuildTimeout = null; // 디바운스를 위한 타이머
     let searchQuery = '';
@@ -1167,8 +1166,8 @@
         });
     }
 
-    /* ─── 주기적 확인 (Periodic check) ─── */
-    function periodicCheck() {
+    /* ─── 프리셋 변경 감지 ─── */
+    function checkPresetChange() {
         const list = getListContainer();
         if (!list || searchHasFocus) return;
         const cp = getCurrentPresetName();
@@ -1177,15 +1176,14 @@
             lastPreset = cp;
             loadWorkingData(isFirstLoad); // 전환된 경우 저장되지 않은 내용을 버리고 저장된 데이터에서 다시 불러오기
             list.querySelectorAll('.pf-toolbar').forEach(el => el.remove());
-            rebuildFolderUI(); return;
-        }
-
-        const currentHash = Array.from(list.querySelectorAll('[data-pm-identifier]'))
-            .map(r => r.getAttribute('data-pm-identifier'))
-            .filter(Boolean).join('|');
-
-        if (!list.querySelector('.pf-injected') || (list._pfHash && list._pfHash !== currentHash)) {
             rebuildFolderUI();
+        }
+    }
+
+    function setupPresetChangeListener() {
+        const sel = document.getElementById('settings_preset_openai');
+        if (sel) {
+            sel.addEventListener('change', checkPresetChange);
         }
     }
 
@@ -1291,12 +1289,16 @@
     /* ─── 초기화 (Init) ─── */
     function init() {
         console.log('[Prompt Folders] loaded');
-        pollTimer = setInterval(periodicCheck, POLL_MS);
+        setupPresetChangeListener();
         hookSaveButton();
         registerSlashCommands();
         const trySetup = () => {
             const list = getListContainer();
-            if (list) { setupObserver(); rebuildFolderUI(); }
+            if (list) {
+                checkPresetChange(); // 초기 로드 진입점
+                setupObserver();
+                rebuildFolderUI();
+            }
             else setTimeout(trySetup, 1000);
         };
         trySetup();
